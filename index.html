@@ -14,13 +14,12 @@
         .btn-secondary:hover { background-color: #5a6268; }
         .mesaj-kart { background: white; padding: 12px; margin-top: 10px; border-radius: 5px; border-left: 4px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .kullanici-adi { font-weight: bold; margin-right: 5px; }
-        .online-bilgi { font-size: 14px; color: #27ae60; font-weight: bold; margin-bottom: 10px; }
+        .online-bilgi { font-size: 14px; color: #27ae60; font-weight: bold; margin-bottom: 5px; }
+        .yaziyor-bilgi { font-size: 13px; color: #888; italic; height: 18px; margin-bottom: 10px; font-style: italic; }
         .baslik-alani { display: flex; justify-content: space-between; align-items: center; }
         
         #sohbetAlani { display: none; }
     </style>
-    <!-- ✉️ EMAILJS KÜTÜPHANESİ -->
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -41,6 +40,7 @@
         </div>
         
         <div class="online-bilgi">🟢 Şu an online: <span id="onlineSayisi">1</span> kişi</div>
+        <div class="yaziyor-bilgi" id="yaziyorAlani"></div>
 
         <div class="kutu">
             <input type="text" id="mesajInput" placeholder="Bir mesaj yaz...">
@@ -54,15 +54,6 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, push, onValue, remove, onDisconnect, set, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
-        // ✉️ EMAILJS BİLGİLERİ
-        const EMAILJS_SERVICE_ID = "service_ue0puyd";
-        const EMAILJS_TEMPLATE_ID = "zubmosd";
-        const EMAILJS_PUBLIC_KEY = "GzLKfagUkCtLYvr8K";
-
-        if (typeof emailjs !== 'undefined') {
-            emailjs.init(EMAILJS_PUBLIC_KEY);
-        }
 
         const firebaseConfig = {
             apiKey: "AIzaSyCNW_z_MQ_S7p5vn-fRLcH6hzKmMHmpEtI",
@@ -85,6 +76,7 @@
         const isimDegistirBtn = document.getElementById("isimDegistirBtn");
         const aktifKullaniciSpan = document.getElementById("aktifKullanici");
         const onlineSayisiSpan = document.getElementById("onlineSayisi");
+        const yaziyorAlani = document.getElementById("yaziyorAlani");
 
         const mesajInput = document.getElementById("mesajInput");
         const gonderBtn = document.getElementById("gonderBtn");
@@ -93,6 +85,7 @@
         let mevcutKullanici = "";
         let kullaniciRengi = "";
         let userRef = null;
+        let yaziyorTimeout = null;
 
         const TUM_RENKLER = [
             "#e74c3c", "#8e44ad", "#2980b9", "#27ae60", 
@@ -100,45 +93,35 @@
             "#e67e22", "#9b59b6", "#3498db", "#1abc9c"
         ];
 
-        // ✉️ E-POSTA GÖNDEREN FONKSİYON
-        function epostaGonder(gonderen, mesaj) {
-            const templateParams = {
-                name: gonderen,
-                message: mesaj
-            };
-
-            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
-                .then(response => {
-                    console.log('E-posta başarıyla gönderildi!', response.status, response.text);
-                }, error => {
-                    console.error('E-posta gönderme hatası:', error);
-                });
-        }
-
-        // 🎨 ÇAKIŞMAYAN BENZERSİZ RENK ÜRETİCİ
         function benzersizRenkBul(kullanilanRenkler) {
             const kullanilmayanlar = TUM_RENKLER.filter(r => !kullanilanRenkler.includes(r));
             if (kullanilmayanlar.length > 0) {
                 return kullanilmayanlar[Math.floor(Math.random() * kullanilmayanlar.length)];
             }
-            // Tüm renkler dolduysa rastgele bir renk ver
             return TUM_RENKLER[Math.floor(Math.random() * TUM_RENKLER.length)];
         }
 
-        // 💾 OTOMATİK GİRİŞ KONTROLÜ
+        // 💾 LOCALSTORAGE (İsim ve Renk Saklama)
         const kayitliIsim = localStorage.getItem("chat_kullanici_adi");
+        const kayitliRenk = localStorage.getItem("chat_kullanici_rengi");
 
         if (kayitliIsim) {
-            // Kayıtlı isim varsa veritabanındaki kullanıcı durumunu kontrol et
-            get(ref(db, 'online_kullanicilar')).then((snapshot) => {
-                const onlineData = snapshot.val() || {};
-                const kullanicilar = Object.values(onlineData);
-                const kullanilanRenkler = kullanicilar.map(u => u.renk);
-
-                mevcutKullanici = kayitliIsim;
-                kullaniciRengi = benzersizRenkBul(kullanilanRenkler);
+            mevcutKullanici = kayitliIsim;
+            // Eğer renk önceden kaydedilmişse onu koru
+            if (kayitliRenk) {
+                kullaniciRengi = kayitliRenk;
                 oturumAc();
-            });
+            } else {
+                get(ref(db, 'online_kullanicilar')).then((snapshot) => {
+                    const onlineData = snapshot.val() || {};
+                    const kullanicilar = Object.values(onlineData);
+                    const kullanilanRenkler = kullanicilar.map(u => u.renk);
+
+                    kullaniciRengi = benzersizRenkBul(kullanilanRenkler);
+                    localStorage.setItem("chat_kullanici_rengi", kullaniciRengi);
+                    oturumAc();
+                });
+            }
         }
 
         function oturumAc() {
@@ -147,15 +130,17 @@
             girisAlani.style.display = "none";
             sohbetAlani.style.display = "block";
 
-            // Online Kullanıcı Listesine İsmi ve Rengi Ekle
+            // Online Listesine Ekle
             userRef = push(ref(db, 'online_kullanicilar'));
             set(userRef, {
                 isim: mevcutKullanici,
                 renk: kullaniciRengi
             });
 
-            // Sekme veya sayfa kapandığında listeden temizle
             onDisconnect(userRef).remove();
+            
+            // Çıkışta yazıyor bilgisini de sil
+            onDisconnect(ref(db, `yaziyor/${mevcutKullanici}`)).remove();
         }
 
         // İSİM GİRİŞİ (Çakışma Kontrollü)
@@ -167,7 +152,6 @@
                 return;
             }
 
-            // Veritabanından mevcut kullanıcıları çekip kontrol et
             get(ref(db, 'online_kullanicilar')).then((snapshot) => {
                 const onlineData = snapshot.val() || {};
                 const kullanicilar = Object.values(onlineData);
@@ -181,26 +165,59 @@
                     return;
                 }
 
-                // Kullanılan renkleri topla ve benzersiz renk ata
                 const kullanilanRenkler = kullanicilar.map(u => u.renk);
                 
                 mevcutKullanici = girilenIsim;
-                kullaniciRengi = benzersizRenkBul(kullanilanRenkler);
+                
+                // Eğer eski kaydedilmiş renk yoksa yeni atayıp kaydet
+                if (!kullaniciRengi) {
+                    kullaniciRengi = benzersizRenkBul(kullanilanRenkler);
+                    localStorage.setItem("chat_kullanici_rengi", kullaniciRengi);
+                }
 
                 localStorage.setItem("chat_kullanici_adi", mevcutKullanici);
                 oturumAc();
             });
         };
 
-        // 🔄 İSİM DEĞİŞTİR BUTONU
+        // 🔄 İSİM DEĞİŞTİR BUTONU (Renk ve Veriler Korunur, Sadece İsim Sıfırlanır)
         isimDegistirBtn.onclick = function() {
             if (userRef) remove(userRef);
             localStorage.removeItem("chat_kullanici_adi");
-            localStorage.removeItem("chat_kullanici_rengi");
+            // NOT: chat_kullanici_rengi SİLİNMİYOR! Renk sabit kalır.
             location.reload();
         };
 
-        // ONLINE SAYACI DİNLEYİCİSİ
+        // ✍️ "YAZIYOR..." ÖZELLİĞİ (Giriş Yapıldığında Çalışır)
+        mesajInput.addEventListener("input", () => {
+            if (!mevcutKullanici) return;
+
+            // Veritabanına "yazıyor" bilgisini koy
+            set(ref(db, `yaziyor/${mevcutKullanici}`), true);
+
+            // Klavyeye basılması durduktan 2 saniye sonra "yazıyor" bilgisini kaldır
+            clearTimeout(yaziyorTimeout);
+            yaziyorTimeout = setTimeout(() => {
+                remove(ref(db, `yaziyor/${mevcutKullanici}`));
+            }, 2000);
+        });
+
+        // CANLI "YAZIYOR..." BİLGİSİNİ DİNLEME
+        onValue(ref(db, 'yaziyor'), (snapshot) => {
+            const yazanlarData = snapshot.val();
+            if (yazanlarData) {
+                const yazanlar = Object.keys(yazanlarData).filter(k => k !== mevcutKullanici);
+                if (yazanlar.length > 0) {
+                    yaziyorAlani.innerText = `${yazanlar.join(", ")} yazıyor...`;
+                } else {
+                    yaziyorAlani.innerText = "";
+                }
+            } else {
+                yaziyorAlani.innerText = "";
+            }
+        });
+
+        // ONLINE SAYACI
         onValue(ref(db, 'online_kullanicilar'), (snapshot) => {
             if (onlineSayisiSpan) {
                 const onlineData = snapshot.val();
@@ -223,14 +240,17 @@
                     metin: yazi,
                     tarih: Date.now()
                 });
+                
+                // Mesaj gönderilince "yazıyor..." durumunu anında kaldır
+                remove(ref(db, `yaziyor/${mevcutKullanici}`));
+                clearTimeout(yaziyorTimeout);
+                
                 mesajInput.value = "";
             }
         };
 
-        // CANLI MESAJ DİNLEME & E-POSTA BİLDİRİMİ
-        let ilkYukleme = true;
+        // CANLI MESAJ DİNLEME
         const paylasimlarRef = ref(db, 'paylasimlar');
-        
         onValue(paylasimlarRef, (snapshot) => {
             if (paylasimlarDiv) {
                 paylasimlarDiv.innerHTML = "";
@@ -238,16 +258,6 @@
                 
                 if (data) {
                     const mesajDizisi = Object.values(data);
-                    const sonMesaj = mesajDizisi[mesajDizisi.length - 1];
-                    
-                    if (!ilkYukleme && sonMesaj) {
-                        const mesajMetni = sonMesaj.metin.toLowerCase();
-                        
-                        if (mesajMetni.includes("murathan") && sonMesaj.kullanici !== mevcutKullanici) {
-                            epostaGonder(sonMesaj.kullanici, sonMesaj.metin);
-                        }
-                    }
-
                     mesajDizisi.reverse().forEach(item => {
                         let kart = document.createElement("div");
                         kart.className = "mesaj-kart";
@@ -256,7 +266,6 @@
                         paylasimlarDiv.appendChild(kart);
                     });
                 }
-                ilkYukleme = false;
             }
         });
     </script>
