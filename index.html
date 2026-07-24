@@ -64,6 +64,10 @@
             measurementId: "G-BQZZRN9PYP"
         };
 
+        // 🤖 TELEGRAM BOT BİLGİLERİ (Buraları kendi bilgilerinle değiştir)
+        const TELEGRAM_BOT_TOKEN = "BURAYA_BOT_TOKEN_GELECEK";
+        const TELEGRAM_CHAT_ID = "BURAYA_CHAT_ID_GELECEK";
+
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
@@ -82,21 +86,22 @@
         let mevcutKullanici = "";
         let kullaniciRengi = "";
 
-        // 🟢 BİLDİRİM İZNİ İSTEME
-        if ('Notification' in window && 'serviceWorker' in navigator) {
-            Notification.requestPermission().then((permission) => {
-                if (permission === 'granted') {
-                    navigator.serviceWorker.register('/firebase-messaging-sw.js');
-                }
-            });
-        }
-
         function rastgeleRenkUret() {
             const renkler = ["#e74c3c", "#8e44ad", "#2980b9", "#27ae60", "#d35400", "#c0392b", "#16a085", "#f39c12"];
             return renkler[Math.floor(Math.random() * renkler.length)];
         }
 
-        // 💾 OTOMATİK GİRİŞ KONTROLÜ (LOCALSTORAGE)
+        // 📲 TELEGRAM'A MESAJ GÖNDEREN FONKSİYON
+        function telegramaBildirimGonder(gonderen, mesaj) {
+            if (TELEGRAM_BOT_TOKEN === "BURAYA_BOT_TOKEN_GELECEK") return;
+
+            const metin = `💬 *Sitede Seni Etiketlediler!*\n\n👤 *Gönderen:* ${gonderen}\n📝 *Mesaj:* ${mesaj}`;
+            const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodeURIComponent(metin)}&parse_mode=Markdown`;
+
+            fetch(url).catch(err => console.error("Telegram bildirim hatası:", err));
+        }
+
+        // 💾 OTOMATİK GİRİŞ KONTROLÜ
         const kayitliIsim = localStorage.getItem("chat_kullanici_adi");
         const kayitliRenk = localStorage.getItem("chat_kullanici_rengi");
 
@@ -120,7 +125,6 @@
                 mevcutKullanici = isim;
                 kullaniciRengi = rastgeleRenkUret();
 
-                // Hafızaya kaydet
                 localStorage.setItem("chat_kullanici_adi", mevcutKullanici);
                 localStorage.setItem("chat_kullanici_rengi", kullaniciRengi);
 
@@ -134,7 +138,7 @@
         isimDegistirBtn.onclick = function() {
             localStorage.removeItem("chat_kullanici_adi");
             localStorage.removeItem("chat_kullanici_rengi");
-            location.reload(); // Sayfayı yenileyip giriş ekranına döndürür
+            location.reload();
         };
 
         // ONLINE SAYACI
@@ -168,7 +172,7 @@
             }
         };
 
-        // CANLI MESAJ DİNLEME & BİLDİRİM
+        // CANLI MESAJ DİNLEME & TELEGRAM BİLDİRİMİ
         let ilkYukleme = true;
         const paylasimlarRef = ref(db, 'paylasimlar');
         
@@ -181,17 +185,13 @@
                     const mesajDizisi = Object.values(data);
                     const sonMesaj = mesajDizisi[mesajDizisi.length - 1];
                     
-                    if (!ilkYukleme && sonMesaj && mevcutKullanici) {
-                        const arananIsim = mevcutKullanici.toLowerCase();
+                    // Eğer ilk yükleme değilse ve yeni mesaj geldiyse
+                    if (!ilkYukleme && sonMesaj) {
                         const mesajMetni = sonMesaj.metin.toLowerCase();
                         
-                        if (sonMesaj.kullanici !== mevcutKullanici && mesajMetni.includes(arananIsim)) {
-                            if (Notification.permission === "granted") {
-                                new Notification(`Seni Etiketlediler! 💬`, {
-                                    body: `${sonMesaj.kullanici}: ${sonMesaj.metin}`,
-                                    icon: 'https://cdn-icons-png.flaticon.com/512/732/732200.png'
-                                });
-                            }
+                        // Kendi mesajımız değilse ve mesajın içinde senin ismin (örn: "murathan") geçiyorsa!
+                        if (mesajMetni.includes("murathan") && sonMesaj.kullanici !== mevcutKullanici) {
+                            telegramaBildirimGonder(sonMesaj.kullanici, sonMesaj.metin);
                         }
                     }
 
