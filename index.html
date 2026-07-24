@@ -11,9 +11,8 @@
         button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
         button:hover { background-color: #0056b3; }
         .mesaj-kart { background: white; padding: 12px; margin-top: 10px; border-radius: 5px; border-left: 4px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .kullanici-adi { font-weight: bold; color: #007bff; margin-right: 5px; }
+        .kullanici-adi { font-weight: bold; margin-right: 5px; }
         
-        /* Başlangıçta sohbet alanını gizliyoruz */
         #sohbetAlani { display: none; }
     </style>
 </head>
@@ -58,7 +57,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // HTML Elemanları
         const girisAlani = document.getElementById("girisAlani");
         const sohbetAlani = document.getElementById("sohbetAlani");
         const kullaniciInput = document.getElementById("kullaniciInput");
@@ -70,33 +68,44 @@
         const paylasimlarDiv = document.getElementById("paylasimlar");
 
         let mevcutKullanici = "";
+        let kullaniciRengi = "";
 
-        // İSİM GİRİŞİ BUTONU
+        // 🎨 Rastgele Renk Üreten Fonksiyon
+        function rastgeleRenkUret() {
+            const renkler = ["#e74c3c", "#8e44ad", "#2980b9", "#27ae60", "#d35400", "#c0392b", "#16a085", "#f39c12"];
+            return renkler[Math.floor(Math.random() * renkler.length)];
+        }
+
+        // İSİM GİRİŞİ
         girisBtn.onclick = function() {
             let isim = kullaniciInput.value.trim();
             if (isim !== "") {
                 mevcutKullanici = isim;
+                kullaniciRengi = rastgeleRenkUret(); // Giriş yapınca renk atanıyor
+                
                 aktifKullaniciSpan.innerText = mevcutKullanici;
-                girisAlani.style.display = "none";  // Giriş kutusunu gizle
-                sohbetAlani.style.display = "block"; // Sohbet alanını göster
+                aktifKullaniciSpan.style.color = kullaniciRengi;
+                
+                girisAlani.style.display = "none";
+                sohbetAlani.style.display = "block";
             } else {
                 alert("Lütfen bir kullanıcı adı girin!");
             }
         };
 
-        // MESAJ GÖNDERME BUTONU
+        // MESAJ GÖNDERME
         gonderBtn.onclick = function() {
             let yazi = mesajInput.value.trim();
 
-            // Gizli Silme Komutu
             if (yazi === "butun_paylasimlari_sil") {
                 remove(ref(db, 'paylasimlar'));
                 mesajInput.value = "";
             } 
-            // Normal Mesaj (İsim + Mesaj Veritabanına Gönderiliyor)
             else if (yazi !== "") {
+                // Mesajla birlikte rengi de Firebase'e kaydediyoruz
                 push(ref(db, 'paylasimlar'), {
                     kullanici: mevcutKullanici,
+                    renk: kullaniciRengi,
                     metin: yazi,
                     tarih: Date.now()
                 });
@@ -115,8 +124,10 @@
                     let kart = document.createElement("div");
                     kart.className = "mesaj-kart";
                     
-                    // Format: "Murat: Merhaba" şeklinde basıyoruz
-                    kart.innerHTML = `<span class="kullanici-adi">${item.kullanici || 'Anonim'}:</span> ${item.metin}`;
+                    // Rengi veritabanından alıyoruz, eski mesajlarda renk yoksa varsayılan mavi yapıyoruz
+                    let isimRengi = item.renk || '#007bff';
+                    
+                    kart.innerHTML = `<span class="kullanici-adi" style="color: ${isimRengi}">${item.kullanici || 'Anonim'}:</span> ${item.metin}`;
                     
                     paylasimlarDiv.appendChild(kart);
                 });
