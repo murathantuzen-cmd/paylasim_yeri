@@ -1,48 +1,4 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canlı Chat Uygulaması</title>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f9; max-width: 500px; margin: auto; }
-        .kutu { display: flex; gap: 10px; margin-bottom: 20px; }
-        input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
-        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        button:hover { background-color: #0056b3; }
-        .mesaj-kart { background: white; padding: 12px; margin-top: 10px; border-radius: 5px; border-left: 4px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .kullanici-adi { font-weight: bold; margin-right: 5px; }
-        .online-bilgi { font-size: 14px; color: #27ae60; font-weight: bold; margin-bottom: 10px; }
-        
-        #sohbetAlani { display: none; }
-    </style>
-</head>
-<body>
-
-    <!-- 1. AŞAMA: İSİM GİRİŞ EKRANI -->
-    <div id="girisAlani">
-        <h2>Sohbete Katıl</h2>
-        <div class="kutu">
-            <input type="text" id="kullaniciInput" placeholder="Kullanıcı adınızı giriniz...">
-            <button id="girisBtn">Giriş</button>
-        </div>
-    </div>
-
-    <!-- 2. AŞAMA: SOHBET EKRANI -->
-    <div id="sohbetAlani">
-        <h2>Canlı Chat (<span id="aktifKullanici"></span>)</h2>
-        <div class="online-bilgi">🟢 Şu an online: <span id="onlineSayisi">1</span> kişi</div>
-
-        <div class="kutu">
-            <input type="text" id="mesajInput" placeholder="Bir mesaj yaz...">
-            <button id="gonderBtn">Paylaş</button>
-        </div>
-
-        <h3>Canlı Paylaşımlar:</h3>
-        <div id="paylasimlar"></div>
-    </div>
-
-    <script type="module">
+<script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
         import { getDatabase, ref, push, onValue, remove, onDisconnect, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -58,9 +14,8 @@
             measurementId: "G-BQZZRN9PYP"
         };
 
-        // Firebase ve Analytics Başlatma
         const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app); // Analytics tekrar aktif edildi!
+        const analytics = getAnalytics(app);
         const db = getDatabase(app);
 
         const girisAlani = document.getElementById("girisAlani");
@@ -76,6 +31,21 @@
 
         let mevcutKullanici = "";
         let kullaniciRengi = "";
+
+        // 🟢 SAYFA AÇILIR AÇILMAZ ONLINE SAYACINI ÇALIŞTIR
+        const userRef = push(ref(db, 'online_kullanicilar'));
+        set(userRef, true);
+        onDisconnect(userRef).remove(); // Sekmeyi veya tarayıcıyı kapatınca listeden siler
+
+        // ONLINE SAYISINI CANLI DİNLE
+        onValue(ref(db, 'online_kullanicilar'), (snapshot) => {
+            const onlineData = snapshot.val();
+            if (onlineData) {
+                onlineSayisiSpan.innerText = Object.keys(onlineData).length;
+            } else {
+                onlineSayisiSpan.innerText = "0";
+            }
+        });
 
         function rastgeleRenkUret() {
             const renkler = ["#e74c3c", "#8e44ad", "#2980b9", "#27ae60", "#d35400", "#c0392b", "#16a085", "#f39c12"];
@@ -94,25 +64,10 @@
                 
                 girisAlani.style.display = "none";
                 sohbetAlani.style.display = "block";
-
-                // ONLINE KULLANICI SAYACI (Giriş yapınca çalışır)
-                const userRef = push(ref(db, 'online_kullanicilar'));
-                set(userRef, true);
-                onDisconnect(userRef).remove(); // Sekmeyi kapatınca online listesinden siler
             } else {
                 alert("Lütfen bir kullanıcı adı girin!");
             }
         };
-
-        // ONLINE SAYISINI CANLI DİNLEME
-        onValue(ref(db, 'online_kullanicilar'), (snapshot) => {
-            const onlineData = snapshot.val();
-            if (onlineData) {
-                onlineSayisiSpan.innerText = Object.keys(onlineData).length;
-            } else {
-                onlineSayisiSpan.innerText = "0";
-            }
-        });
 
         // MESAJ GÖNDERME
         gonderBtn.onclick = function() {
@@ -150,5 +105,3 @@
             }
         });
     </script>
-</body>
-</html>
