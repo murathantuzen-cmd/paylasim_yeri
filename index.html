@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Canlı Paylaşım</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f9; max-width: 500px; margin: auto; }
+        .kutu { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        .mesaj-kart { background: white; padding: 12px; margin-top: 10px; border-radius: 5px; border-left: 4px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+    <h2>Bir Şeyler Paylaş!</h2>
+    <div class="kutu">
+        <input type="text" id="mesajInput" placeholder="Bir mesaj yaz...">
+        <button id="gonderBtn">Paylaş</button>
+    </div>
+
+    <h3>Canlı Paylaşımlar:</h3>
+    <div id="paylasimlar"></div>
+
+    <!-- JavaScript Kodları -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // Senin Bağlantı Bilgilerin
+        const firebaseConfig = {
+            apiKey: "AIzaSyCNW_z_MQ_S7p5vn-fRLcH6hzKmMHmpEtI",
+            authDomain: "benim-ilk-sitem.firebaseapp.com",
+            databaseURL: "https://benim-ilk-sitem-default-rtdb.firebaseio.com",
+            projectId: "benim-ilk-sitem",
+            storageBucket: "benim-ilk-sitem.firebasestorage.app",
+            messagingSenderId: "766349238368",
+            appId: "1:766349238368:web:0df9e38ccac84149cf2305",
+            measurementId: "G-BQZZRN9PYP"
+        };
+
+        // Firebase Başlat
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        const mesajInput = document.getElementById("mesajInput");
+        const gonderBtn = document.getElementById("gonderBtn");
+        const paylasimlarDiv = document.getElementById("paylasimlar");
+
+        // Gönder Butonuna Basınca
+        gonderBtn.onclick = function() {
+            let yazi = mesajInput.value;
+            if (yazi.trim() !== "") {
+                push(ref(db, 'paylasimlar'), {
+                    metin: yazi,
+                    tarih: Date.now()
+                });
+                mesajInput.value = "";
+            }
+        };
+
+        // Veritabanını Canlı Dinle
+        const paylasimlarRef = ref(db, 'paylasimlar');
+        onValue(paylasimlarRef, (snapshot) => {
+            paylasimlarDiv.innerHTML = "";
+            const data = snapshot.val();
+            
+            if (data) {
+                Object.values(data).reverse().forEach(item => {
+                    let kart = document.createElement("div");
+                    kart.className = "mesaj-kart";
+                    kart.innerText = item.metin;
+                    paylasimlarDiv.appendChild(kart);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
