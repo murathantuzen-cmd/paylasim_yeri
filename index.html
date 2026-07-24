@@ -26,10 +26,10 @@
 
     <!-- JavaScript Kodları -->
     <script type="module">
+        // 1. Silme işlemi için "remove" modülünü ekledik
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // Senin Bağlantı Bilgilerin
         const firebaseConfig = {
             apiKey: "AIzaSyCNW_z_MQ_S7p5vn-fRLcH6hzKmMHmpEtI",
             authDomain: "benim-ilk-sitem.firebaseapp.com",
@@ -41,7 +41,6 @@
             measurementId: "G-BQZZRN9PYP"
         };
 
-        // Firebase Başlat
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
@@ -49,10 +48,26 @@
         const gonderBtn = document.getElementById("gonderBtn");
         const paylasimlarDiv = document.getElementById("paylasimlar");
 
-        // Gönder Butonuna Basınca
         gonderBtn.onclick = function() {
-            let yazi = mesajInput.value;
-            if (yazi.trim() !== "") {
+            let yazi = mesajInput.value.trim();
+
+            // 🗝️ Gizli Kod Kontrolü!
+            if (yazi === "butun_paylasimlari_sil") {
+                // 1. Firebase'deki tüm verileri siler
+                remove(ref(db, 'paylasimlar'))
+                    .then(() => {
+                        // 2. Ekranda paylaşımlar alanındaki tüm div'leri temizler
+                        paylasimlarDiv.innerHTML = "";
+                        alert("Tüm veriler ve ekrandaki paylaşımlar başarıyla silindi!");
+                    })
+                    .catch((error) => {
+                        console.error("Silme hatası:", error);
+                    });
+
+                mesajInput.value = ""; // Kutuyu temizle
+            } 
+            // Normal Mesaj Gönderme
+            else if (yazi !== "") {
                 push(ref(db, 'paylasimlar'), {
                     metin: yazi,
                     tarih: Date.now()
@@ -61,7 +76,7 @@
             }
         };
 
-        // Veritabanını Canlı Dinle
+        // Verileri Canlı Dinle
         const paylasimlarRef = ref(db, 'paylasimlar');
         onValue(paylasimlarRef, (snapshot) => {
             paylasimlarDiv.innerHTML = "";
