@@ -12,6 +12,7 @@
         button:hover { background-color: #0056b3; }
         .mesaj-kart { background: white; padding: 12px; margin-top: 10px; border-radius: 5px; border-left: 4px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .kullanici-adi { font-weight: bold; margin-right: 5px; }
+        .online-bilgi { font-size: 14px; color: #27ae60; font-weight: bold; margin-bottom: 10px; }
         
         #sohbetAlani { display: none; }
     </style>
@@ -30,6 +31,8 @@
     <!-- 2. AŞAMA: SOHBET EKRANI -->
     <div id="sohbetAlani">
         <h2>Canlı Chat (<span id="aktifKullanici"></span>)</h2>
+        <div class="online-bilgi">🟢 Şu an online: <span id="onlineSayisi">1</span> kişi</div>
+
         <div class="kutu">
             <input type="text" id="mesajInput" placeholder="Bir mesaj yaz...">
             <button id="gonderBtn">Paylaş</button>
@@ -41,7 +44,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+        import { getDatabase, ref, push, onValue, remove, onDisconnect, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCNW_z_MQ_S7p5vn-fRLcH6hzKmMHmpEtI",
@@ -54,7 +58,9 @@
             measurementId: "G-BQZZRN9PYP"
         };
 
+        // Firebase ve Analytics Başlatma
         const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app); // Analytics tekrar aktif edildi!
         const db = getDatabase(app);
 
         const girisAlani = document.getElementById("girisAlani");
@@ -62,6 +68,7 @@
         const kullaniciInput = document.getElementById("kullaniciInput");
         const girisBtn = document.getElementById("girisBtn");
         const aktifKullaniciSpan = document.getElementById("aktifKullanici");
+        const onlineSayisiSpan = document.getElementById("onlineSayisi");
 
         const mesajInput = document.getElementById("mesajInput");
         const gonderBtn = document.getElementById("gonderBtn");
@@ -70,9 +77,8 @@
         let mevcutKullanici = "";
         let kullaniciRengi = "";
 
-        // 🎨 Rastgele Renk Üreten Fonksiyon
         function rastgeleRenkUret() {
-            const renkler = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff", "#e4e4e4"];
+            const renkler = ["#e74c3c", "#8e44ad", "#2980b9", "#27ae60", "#d35400", "#c0392b", "#16a085", "#f39c12"];
             return renkler[Math.floor(Math.random() * renkler.length)];
         }
 
@@ -81,17 +87,32 @@
             let isim = kullaniciInput.value.trim();
             if (isim !== "") {
                 mevcutKullanici = isim;
-                kullaniciRengi = rastgeleRenkUret(); // Giriş yapınca renk atanıyor
+                kullaniciRengi = rastgeleRenkUret();
                 
                 aktifKullaniciSpan.innerText = mevcutKullanici;
                 aktifKullaniciSpan.style.color = kullaniciRengi;
                 
                 girisAlani.style.display = "none";
                 sohbetAlani.style.display = "block";
+
+                // ONLINE KULLANICI SAYACI (Giriş yapınca çalışır)
+                const userRef = push(ref(db, 'online_kullanicilar'));
+                set(userRef, true);
+                onDisconnect(userRef).remove(); // Sekmeyi kapatınca online listesinden siler
             } else {
                 alert("Lütfen bir kullanıcı adı girin!");
             }
         };
+
+        // ONLINE SAYISINI CANLI DİNLEME
+        onValue(ref(db, 'online_kullanicilar'), (snapshot) => {
+            const onlineData = snapshot.val();
+            if (onlineData) {
+                onlineSayisiSpan.innerText = Object.keys(onlineData).length;
+            } else {
+                onlineSayisiSpan.innerText = "0";
+            }
+        });
 
         // MESAJ GÖNDERME
         gonderBtn.onclick = function() {
@@ -102,7 +123,6 @@
                 mesajInput.value = "";
             } 
             else if (yazi !== "") {
-                // Mesajla birlikte rengi de Firebase'e kaydediyoruz
                 push(ref(db, 'paylasimlar'), {
                     kullanici: mevcutKullanici,
                     renk: kullaniciRengi,
@@ -113,7 +133,7 @@
             }
         };
 
-        // CANLI VERİ DİNLEME
+        // CANLI MESAJ DİNLEME
         const paylasimlarRef = ref(db, 'paylasimlar');
         onValue(paylasimlarRef, (snapshot) => {
             paylasimlarDiv.innerHTML = "";
@@ -123,12 +143,8 @@
                 Object.values(data).reverse().forEach(item => {
                     let kart = document.createElement("div");
                     kart.className = "mesaj-kart";
-                    
-                    // Rengi veritabanından alıyoruz, eski mesajlarda renk yoksa varsayılan mavi yapıyoruz
                     let isimRengi = item.renk || '#007bff';
-                    
                     kart.innerHTML = `<span class="kullanici-adi" style="color: ${isimRengi}">${item.kullanici || 'Anonim'}:</span> ${item.metin}`;
-                    
                     paylasimlarDiv.appendChild(kart);
                 });
             }
