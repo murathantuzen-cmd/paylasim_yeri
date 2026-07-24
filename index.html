@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firebase Canlı Paylaşım</title>
+    <title>Canlı Chat Uygulaması</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f9; max-width: 500px; margin: auto; }
         .kutu { display: flex; gap: 10px; margin-bottom: 20px; }
@@ -11,22 +11,36 @@
         button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
         button:hover { background-color: #0056b3; }
         .mesaj-kart { background: white; padding: 12px; margin-top: 10px; border-radius: 5px; border-left: 4px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .kullanici-adi { font-weight: bold; color: #007bff; margin-right: 5px; }
+        
+        /* Başlangıçta sohbet alanını gizliyoruz */
+        #sohbetAlani { display: none; }
     </style>
 </head>
 <body>
 
-    <h2>Bir Şeyler Paylaş!</h2>
-    <div class="kutu">
-        <input type="text" id="mesajInput" placeholder="Bir mesaj yaz...">
-        <button id="gonderBtn">Paylaş</button>
+    <!-- 1. AŞAMA: İSİM GİRİŞ EKRANI -->
+    <div id="girisAlani">
+        <h2>Sohbete Katıl</h2>
+        <div class="kutu">
+            <input type="text" id="kullaniciInput" placeholder="Kullanıcı adınızı giriniz...">
+            <button id="girisBtn">Giriş</button>
+        </div>
     </div>
 
-    <h3>Canlı Paylaşımlar:</h3>
-    <div id="paylasimlar"></div>
+    <!-- 2. AŞAMA: SOHBET EKRANI -->
+    <div id="sohbetAlani">
+        <h2>Canlı Chat (<span id="aktifKullanici"></span>)</h2>
+        <div class="kutu">
+            <input type="text" id="mesajInput" placeholder="Bir mesaj yaz...">
+            <button id="gonderBtn">Paylaş</button>
+        </div>
 
-    <!-- JavaScript Kodları -->
+        <h3>Canlı Paylaşımlar:</h3>
+        <div id="paylasimlar"></div>
+    </div>
+
     <script type="module">
-        // 1. Silme işlemi için "remove" modülünü ekledik
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
@@ -44,31 +58,45 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
+        // HTML Elemanları
+        const girisAlani = document.getElementById("girisAlani");
+        const sohbetAlani = document.getElementById("sohbetAlani");
+        const kullaniciInput = document.getElementById("kullaniciInput");
+        const girisBtn = document.getElementById("girisBtn");
+        const aktifKullaniciSpan = document.getElementById("aktifKullanici");
+
         const mesajInput = document.getElementById("mesajInput");
         const gonderBtn = document.getElementById("gonderBtn");
         const paylasimlarDiv = document.getElementById("paylasimlar");
 
+        let mevcutKullanici = "";
+
+        // İSİM GİRİŞİ BUTONU
+        girisBtn.onclick = function() {
+            let isim = kullaniciInput.value.trim();
+            if (isim !== "") {
+                mevcutKullanici = isim;
+                aktifKullaniciSpan.innerText = mevcutKullanici;
+                girisAlani.style.display = "none";  // Giriş kutusunu gizle
+                sohbetAlani.style.display = "block"; // Sohbet alanını göster
+            } else {
+                alert("Lütfen bir kullanıcı adı girin!");
+            }
+        };
+
+        // MESAJ GÖNDERME BUTONU
         gonderBtn.onclick = function() {
             let yazi = mesajInput.value.trim();
 
-            // 🗝️ Gizli Kod Kontrolü!
+            // Gizli Silme Komutu
             if (yazi === "butun_paylasimlari_sil") {
-                // 1. Firebase'deki tüm verileri siler
-                remove(ref(db, 'paylasimlar'))
-                    .then(() => {
-                        // 2. Ekranda paylaşımlar alanındaki tüm div'leri temizler
-                        paylasimlarDiv.innerHTML = "";
-                        alert("Tüm veriler ve ekrandaki paylaşımlar başarıyla silindi!");
-                    })
-                    .catch((error) => {
-                        console.error("Silme hatası:", error);
-                    });
-
-                mesajInput.value = ""; // Kutuyu temizle
+                remove(ref(db, 'paylasimlar'));
+                mesajInput.value = "";
             } 
-            // Normal Mesaj Gönderme
+            // Normal Mesaj (İsim + Mesaj Veritabanına Gönderiliyor)
             else if (yazi !== "") {
                 push(ref(db, 'paylasimlar'), {
+                    kullanici: mevcutKullanici,
                     metin: yazi,
                     tarih: Date.now()
                 });
@@ -76,7 +104,7 @@
             }
         };
 
-        // Verileri Canlı Dinle
+        // CANLI VERİ DİNLEME
         const paylasimlarRef = ref(db, 'paylasimlar');
         onValue(paylasimlarRef, (snapshot) => {
             paylasimlarDiv.innerHTML = "";
@@ -86,7 +114,10 @@
                 Object.values(data).reverse().forEach(item => {
                     let kart = document.createElement("div");
                     kart.className = "mesaj-kart";
-                    kart.innerText = item.metin;
+                    
+                    // Format: "Murat: Merhaba" şeklinde basıyoruz
+                    kart.innerHTML = `<span class="kullanici-adi">${item.kullanici || 'Anonim'}:</span> ${item.metin}`;
+                    
                     paylasimlarDiv.appendChild(kart);
                 });
             }
