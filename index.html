@@ -53,14 +53,13 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, push, onValue, remove, onDisconnect, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, push, onValue, remove, onDisconnect, set, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // ✉️ EMAILJS BİLGİLERİ (TÜM BİLGİLER EKLENDİ)
+        // ✉️ EMAILJS BİLGİLERİ
         const EMAILJS_SERVICE_ID = "service_ue0puyd";
         const EMAILJS_TEMPLATE_ID = "zubmosd";
         const EMAILJS_PUBLIC_KEY = "GzLKfagUkCtLYvr8K";
 
-        // EmailJS'i Başlat
         if (typeof emailjs !== 'undefined') {
             emailjs.init(EMAILJS_PUBLIC_KEY);
         }
@@ -93,11 +92,13 @@
 
         let mevcutKullanici = "";
         let kullaniciRengi = "";
+        let userRef = null;
 
-        function rastgeleRenkUret() {
-            const renkler = ["#e74c3c", "#8e44ad", "#2980b9", "#27ae60", "#d35400", "#c0392b", "#16a085", "#f39c12"];
-            return renkler[Math.floor(Math.random() * renkler.length)];
-        }
+        const TUM_RENKLER = [
+            "#e74c3c", "#8e44ad", "#2980b9", "#27ae60", 
+            "#d35400", "#c0392b", "#16a085", "#f39c12", 
+            "#e67e22", "#9b59b6", "#3498db", "#1abc9c"
+        ];
 
         // ✉️ E-POSTA GÖNDEREN FONKSİYON
         function epostaGonder(gonderen, mesaj) {
@@ -114,14 +115,30 @@
                 });
         }
 
-        // LOCALSTORAGE İSİM HATIRLAMA
+        // 🎨 ÇAKIŞMAYAN BENZERSİZ RENK ÜRETİCİ
+        function benzersizRenkBul(kullanilanRenkler) {
+            const kullanilmayanlar = TUM_RENKLER.filter(r => !kullanilanRenkler.includes(r));
+            if (kullanilmayanlar.length > 0) {
+                return kullanilmayanlar[Math.floor(Math.random() * kullanilmayanlar.length)];
+            }
+            // Tüm renkler dolduysa rastgele bir renk ver
+            return TUM_RENKLER[Math.floor(Math.random() * TUM_RENKLER.length)];
+        }
+
+        // 💾 OTOMATİK GİRİŞ KONTROLÜ
         const kayitliIsim = localStorage.getItem("chat_kullanici_adi");
-        const kayitliRenk = localStorage.getItem("chat_kullanici_rengi");
 
         if (kayitliIsim) {
-            mevcutKullanici = kayitliIsim;
-            kullaniciRengi = kayitliRenk || rastgeleRenkUret();
-            oturumAc();
+            // Kayıtlı isim varsa veritabanındaki kullanıcı durumunu kontrol et
+            get(ref(db, 'online_kullanicilar')).then((snapshot) => {
+                const onlineData = snapshot.val() || {};
+                const kullanicilar = Object.values(onlineData);
+                const kullanilanRenkler = kullanicilar.map(u => u.renk);
+
+                mevcutKullanici = kayitliIsim;
+                kullaniciRengi = benzersizRenkBul(kullanilanRenkler);
+                oturumAc();
+            });
         }
 
         function oturumAc() {
@@ -129,34 +146,61 @@
             aktifKullaniciSpan.style.color = kullaniciRengi;
             girisAlani.style.display = "none";
             sohbetAlani.style.display = "block";
+
+            // Online Kullanıcı Listesine İsmi ve Rengi Ekle
+            userRef = push(ref(db, 'online_kullanicilar'));
+            set(userRef, {
+                isim: mevcutKullanici,
+                renk: kullaniciRengi
+            });
+
+            // Sekme veya sayfa kapandığında listeden temizle
+            onDisconnect(userRef).remove();
         }
 
+        // İSİM GİRİŞİ (Çakışma Kontrollü)
         girisBtn.onclick = function() {
-            let isim = kullaniciInput.value.trim();
-            if (isim !== "") {
-                mevcutKullanici = isim;
-                kullaniciRengi = rastgeleRenkUret();
+            let girilenIsim = kullaniciInput.value.trim();
+
+            if (girilenIsim === "") {
+                alert("Lütfen bir kullanıcı adı girin!");
+                return;
+            }
+
+            // Veritabanından mevcut kullanıcıları çekip kontrol et
+            get(ref(db, 'online_kullanicilar')).then((snapshot) => {
+                const onlineData = snapshot.val() || {};
+                const kullanicilar = Object.values(onlineData);
+
+                const isimKullaniliyorMu = kullanicilar.some(
+                    u => u.isim && u.isim.toLowerCase() === girilenIsim.toLowerCase()
+                );
+
+                if (isimKullaniliyorMu) {
+                    alert("Bu kullanıcı adı şu an kullanımda! Lütfen başka bir isim seçin.");
+                    return;
+                }
+
+                // Kullanılan renkleri topla ve benzersiz renk ata
+                const kullanilanRenkler = kullanicilar.map(u => u.renk);
+                
+                mevcutKullanici = girilenIsim;
+                kullaniciRengi = benzersizRenkBul(kullanilanRenkler);
 
                 localStorage.setItem("chat_kullanici_adi", mevcutKullanici);
-                localStorage.setItem("chat_kullanici_rengi", kullaniciRengi);
-
                 oturumAc();
-            } else {
-                alert("Lütfen bir kullanıcı adı girin!");
-            }
+            });
         };
 
+        // 🔄 İSİM DEĞİŞTİR BUTONU
         isimDegistirBtn.onclick = function() {
+            if (userRef) remove(userRef);
             localStorage.removeItem("chat_kullanici_adi");
             localStorage.removeItem("chat_kullanici_rengi");
             location.reload();
         };
 
-        // ONLINE SAYACI
-        const userRef = push(ref(db, 'online_kullanicilar'));
-        set(userRef, true);
-        onDisconnect(userRef).remove();
-
+        // ONLINE SAYACI DİNLEYİCİSİ
         onValue(ref(db, 'online_kullanicilar'), (snapshot) => {
             if (onlineSayisiSpan) {
                 const onlineData = snapshot.val();
@@ -199,7 +243,6 @@
                     if (!ilkYukleme && sonMesaj) {
                         const mesajMetni = sonMesaj.metin.toLowerCase();
                         
-                        // Mesajda murathan kelimesi geçiyorsa ve mesajı atan kişi kendin değilsen e-posta gönder!
                         if (mesajMetni.includes("murathan") && sonMesaj.kullanici !== mevcutKullanici) {
                             epostaGonder(sonMesaj.kullanici, sonMesaj.metin);
                         }
