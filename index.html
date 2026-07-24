@@ -19,6 +19,8 @@
         
         #sohbetAlani { display: none; }
     </style>
+    <!-- ✉️ EMAILJS KÜTÜPHANESİ -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -53,6 +55,16 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, push, onValue, remove, onDisconnect, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+        // ✉️ EMAILJS BİLGİLERİ (TÜM BİLGİLER EKLENDİ)
+        const EMAILJS_SERVICE_ID = "service_ue0puyd";
+        const EMAILJS_TEMPLATE_ID = "zubmosd";
+        const EMAILJS_PUBLIC_KEY = "GzLKfagUkCtLYvr8K";
+
+        // EmailJS'i Başlat
+        if (typeof emailjs !== 'undefined') {
+            emailjs.init(EMAILJS_PUBLIC_KEY);
+        }
+
         const firebaseConfig = {
             apiKey: "AIzaSyCNW_z_MQ_S7p5vn-fRLcH6hzKmMHmpEtI",
             authDomain: "benim-ilk-sitem.firebaseapp.com",
@@ -63,10 +75,6 @@
             appId: "1:766349238368:web:0df9e38ccac84149cf2305",
             measurementId: "G-BQZZRN9PYP"
         };
-
-        // 🤖 TELEGRAM BOT BİLGİLERİ (Buraları kendi bilgilerinle değiştir)
-        const TELEGRAM_BOT_TOKEN = "BURAYA_BOT_TOKEN_GELECEK";
-        const TELEGRAM_CHAT_ID = "BURAYA_CHAT_ID_GELECEK";
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
@@ -91,17 +99,22 @@
             return renkler[Math.floor(Math.random() * renkler.length)];
         }
 
-        // 📲 TELEGRAM'A MESAJ GÖNDEREN FONKSİYON
-        function telegramaBildirimGonder(gonderen, mesaj) {
-            if (TELEGRAM_BOT_TOKEN === "BURAYA_BOT_TOKEN_GELECEK") return;
+        // ✉️ E-POSTA GÖNDEREN FONKSİYON
+        function epostaGonder(gonderen, mesaj) {
+            const templateParams = {
+                name: gonderen,
+                message: mesaj
+            };
 
-            const metin = `💬 *Sitede Seni Etiketlediler!*\n\n👤 *Gönderen:* ${gonderen}\n📝 *Mesaj:* ${mesaj}`;
-            const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodeURIComponent(metin)}&parse_mode=Markdown`;
-
-            fetch(url).catch(err => console.error("Telegram bildirim hatası:", err));
+            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
+                .then(response => {
+                    console.log('E-posta başarıyla gönderildi!', response.status, response.text);
+                }, error => {
+                    console.error('E-posta gönderme hatası:', error);
+                });
         }
 
-        // 💾 OTOMATİK GİRİŞ KONTROLÜ
+        // LOCALSTORAGE İSİM HATIRLAMA
         const kayitliIsim = localStorage.getItem("chat_kullanici_adi");
         const kayitliRenk = localStorage.getItem("chat_kullanici_rengi");
 
@@ -118,7 +131,6 @@
             sohbetAlani.style.display = "block";
         }
 
-        // İSİM GİRİŞİ BUTONU
         girisBtn.onclick = function() {
             let isim = kullaniciInput.value.trim();
             if (isim !== "") {
@@ -134,7 +146,6 @@
             }
         };
 
-        // 🔄 İSİM DEĞİŞTİR BUTONU
         isimDegistirBtn.onclick = function() {
             localStorage.removeItem("chat_kullanici_adi");
             localStorage.removeItem("chat_kullanici_rengi");
@@ -172,7 +183,7 @@
             }
         };
 
-        // CANLI MESAJ DİNLEME & TELEGRAM BİLDİRİMİ
+        // CANLI MESAJ DİNLEME & E-POSTA BİLDİRİMİ
         let ilkYukleme = true;
         const paylasimlarRef = ref(db, 'paylasimlar');
         
@@ -185,13 +196,12 @@
                     const mesajDizisi = Object.values(data);
                     const sonMesaj = mesajDizisi[mesajDizisi.length - 1];
                     
-                    // Eğer ilk yükleme değilse ve yeni mesaj geldiyse
                     if (!ilkYukleme && sonMesaj) {
                         const mesajMetni = sonMesaj.metin.toLowerCase();
                         
-                        // Kendi mesajımız değilse ve mesajın içinde senin ismin (örn: "murathan") geçiyorsa!
+                        // Mesajda murathan kelimesi geçiyorsa ve mesajı atan kişi kendin değilsen e-posta gönder!
                         if (mesajMetni.includes("murathan") && sonMesaj.kullanici !== mevcutKullanici) {
-                            telegramaBildirimGonder(sonMesaj.kullanici, sonMesaj.metin);
+                            epostaGonder(sonMesaj.kullanici, sonMesaj.metin);
                         }
                     }
 
