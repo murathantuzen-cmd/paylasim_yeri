@@ -10,9 +10,12 @@
         input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
         button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
         button:hover { background-color: #0056b3; }
+        .btn-secondary { background-color: #6c757d; font-size: 12px; padding: 5px 10px; margin-left: 10px; }
+        .btn-secondary:hover { background-color: #5a6268; }
         .mesaj-kart { background: white; padding: 12px; margin-top: 10px; border-radius: 5px; border-left: 4px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .kullanici-adi { font-weight: bold; margin-right: 5px; }
         .online-bilgi { font-size: 14px; color: #27ae60; font-weight: bold; margin-bottom: 10px; }
+        .baslik-alani { display: flex; justify-content: space-between; align-items: center; }
         
         #sohbetAlani { display: none; }
     </style>
@@ -30,7 +33,11 @@
 
     <!-- 2. AŞAMA: SOHBET EKRANI -->
     <div id="sohbetAlani">
-        <h2>Canlı Chat (<span id="aktifKullanici"></span>)</h2>
+        <div class="baslik-alani">
+            <h2>Canlı Chat (<span id="aktifKullanici"></span>)</h2>
+            <button id="isimDegistirBtn" class="btn-secondary">İsim Değiştir</button>
+        </div>
+        
         <div class="online-bilgi">🟢 Şu an online: <span id="onlineSayisi">1</span> kişi</div>
 
         <div class="kutu">
@@ -64,6 +71,7 @@
         const sohbetAlani = document.getElementById("sohbetAlani");
         const kullaniciInput = document.getElementById("kullaniciInput");
         const girisBtn = document.getElementById("girisBtn");
+        const isimDegistirBtn = document.getElementById("isimDegistirBtn");
         const aktifKullaniciSpan = document.getElementById("aktifKullanici");
         const onlineSayisiSpan = document.getElementById("onlineSayisi");
 
@@ -74,7 +82,7 @@
         let mevcutKullanici = "";
         let kullaniciRengi = "";
 
-        // 🔔 BİLDİRİM İZNİ İSTEME VE SERVICE WORKER KAYDI
+        // 🟢 BİLDİRİM İZNİ İSTEME
         if ('Notification' in window && 'serviceWorker' in navigator) {
             Notification.requestPermission().then((permission) => {
                 if (permission === 'granted') {
@@ -83,12 +91,57 @@
             });
         }
 
-        // 🟢 SAYFA AÇILINCA ONLINE OLARAK EKLE
+        function rastgeleRenkUret() {
+            const renkler = ["#e74c3c", "#8e44ad", "#2980b9", "#27ae60", "#d35400", "#c0392b", "#16a085", "#f39c12"];
+            return renkler[Math.floor(Math.random() * renkler.length)];
+        }
+
+        // 💾 OTOMATİK GİRİŞ KONTROLÜ (LOCALSTORAGE)
+        const kayitliIsim = localStorage.getItem("chat_kullanici_adi");
+        const kayitliRenk = localStorage.getItem("chat_kullanici_rengi");
+
+        if (kayitliIsim) {
+            mevcutKullanici = kayitliIsim;
+            kullaniciRengi = kayitliRenk || rastgeleRenkUret();
+            oturumAc();
+        }
+
+        function oturumAc() {
+            aktifKullaniciSpan.innerText = mevcutKullanici;
+            aktifKullaniciSpan.style.color = kullaniciRengi;
+            girisAlani.style.display = "none";
+            sohbetAlani.style.display = "block";
+        }
+
+        // İSİM GİRİŞİ BUTONU
+        girisBtn.onclick = function() {
+            let isim = kullaniciInput.value.trim();
+            if (isim !== "") {
+                mevcutKullanici = isim;
+                kullaniciRengi = rastgeleRenkUret();
+
+                // Hafızaya kaydet
+                localStorage.setItem("chat_kullanici_adi", mevcutKullanici);
+                localStorage.setItem("chat_kullanici_rengi", kullaniciRengi);
+
+                oturumAc();
+            } else {
+                alert("Lütfen bir kullanıcı adı girin!");
+            }
+        };
+
+        // 🔄 İSİM DEĞİŞTİR BUTONU
+        isimDegistirBtn.onclick = function() {
+            localStorage.removeItem("chat_kullanici_adi");
+            localStorage.removeItem("chat_kullanici_rengi");
+            location.reload(); // Sayfayı yenileyip giriş ekranına döndürür
+        };
+
+        // ONLINE SAYACI
         const userRef = push(ref(db, 'online_kullanicilar'));
         set(userRef, true);
         onDisconnect(userRef).remove();
 
-        // ONLINE SAYISINI CANLI DİNLE
         onValue(ref(db, 'online_kullanicilar'), (snapshot) => {
             if (onlineSayisiSpan) {
                 const onlineData = snapshot.val();
@@ -96,54 +149,26 @@
             }
         });
 
-        function rastgeleRenkUret() {
-            const renkler = ["#e74c3c", "#8e44ad", "#2980b9", "#27ae60", "#d35400", "#c0392b", "#16a085", "#f39c12"];
-            return renkler[Math.floor(Math.random() * renkler.length)];
-        }
-
-        // İSİM GİRİŞİ
-        if (girisBtn) {
-            girisBtn.onclick = function() {
-                let isim = kullaniciInput.value.trim();
-                if (isim !== "") {
-                    mevcutKullanici = isim;
-                    kullaniciRengi = rastgeleRenkUret();
-                    
-                    if (aktifKullaniciSpan) {
-                        aktifKullaniciSpan.innerText = mevcutKullanici;
-                        aktifKullaniciSpan.style.color = kullaniciRengi;
-                    }
-                    
-                    if (girisAlani) girisAlani.style.display = "none";
-                    if (sohbetAlani) sohbetAlani.style.display = "block";
-                } else {
-                    alert("Lütfen bir kullanıcı adı girin!");
-                }
-            };
-        }
-
         // MESAJ GÖNDERME
-        if (gonderBtn) {
-            gonderBtn.onclick = function() {
-                let yazi = mesajInput.value.trim();
+        gonderBtn.onclick = function() {
+            let yazi = mesajInput.value.trim();
 
-                if (yazi === "butun_paylasimlari_sil") {
-                    remove(ref(db, 'paylasimlar'));
-                    mesajInput.value = "";
-                } 
-                else if (yazi !== "") {
-                    push(ref(db, 'paylasimlar'), {
-                        kullanici: mevcutKullanici,
-                        renk: kullaniciRengi,
-                        metin: yazi,
-                        tarih: Date.now()
-                    });
-                    mesajInput.value = "";
-                }
-            };
-        }
+            if (yazi === "butun_paylasimlari_sil") {
+                remove(ref(db, 'paylasimlar'));
+                mesajInput.value = "";
+            } 
+            else if (yazi !== "") {
+                push(ref(db, 'paylasimlar'), {
+                    kullanici: mevcutKullanici,
+                    renk: kullaniciRengi,
+                    metin: yazi,
+                    tarih: Date.now()
+                });
+                mesajInput.value = "";
+            }
+        };
 
-        // CANLI MESAJ DİNLEME & BİLDİRİM TETİKLEME
+        // CANLI MESAJ DİNLEME & BİLDİRİM
         let ilkYukleme = true;
         const paylasimlarRef = ref(db, 'paylasimlar');
         
@@ -154,16 +179,12 @@
                 
                 if (data) {
                     const mesajDizisi = Object.values(data);
-                    
-                    // Son eklenen mesaja bak
                     const sonMesaj = mesajDizisi[mesajDizisi.length - 1];
                     
-                    // Eğer ilk açılış değilse ve mesaj bizim seçtiğimiz ismi içeriyorsa bildirim at
                     if (!ilkYukleme && sonMesaj && mevcutKullanici) {
                         const arananIsim = mevcutKullanici.toLowerCase();
                         const mesajMetni = sonMesaj.metin.toLowerCase();
                         
-                        // Mesajı atan kişi kendimiz değilsek ve mesajda ismimiz geçiyorsa!
                         if (sonMesaj.kullanici !== mevcutKullanici && mesajMetni.includes(arananIsim)) {
                             if (Notification.permission === "granted") {
                                 new Notification(`Seni Etiketlediler! 💬`, {
