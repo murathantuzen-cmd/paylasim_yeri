@@ -44,7 +44,6 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
         import { getDatabase, ref, push, onValue, remove, onDisconnect, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
@@ -59,7 +58,6 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
         const db = getDatabase(app);
 
         const girisAlani = document.getElementById("girisAlani");
@@ -76,12 +74,21 @@
         let mevcutKullanici = "";
         let kullaniciRengi = "";
 
-        // 🟢 Sayfaya girer girmez online listesine ekler
+        // 🔔 BİLDİRİM İZNİ İSTEME VE SERVICE WORKER KAYDI
+        if ('Notification' in window && 'serviceWorker' in navigator) {
+            Notification.requestPermission().then((permission) => {
+                if (permission === 'granted') {
+                    navigator.serviceWorker.register('/firebase-messaging-sw.js');
+                }
+            });
+        }
+
+        // 🟢 SAYFA AÇILINCA ONLINE OLARAK EKLE
         const userRef = push(ref(db, 'online_kullanicilar'));
         set(userRef, true);
         onDisconnect(userRef).remove();
 
-        // Online Sayısını Canlı Dinle (Null kontrolü ile güvenli hale getirildi)
+        // ONLINE SAYISINI CANLI DİNLE
         onValue(ref(db, 'online_kullanicilar'), (snapshot) => {
             if (onlineSayisiSpan) {
                 const onlineData = snapshot.val();
@@ -94,7 +101,7 @@
             return renkler[Math.floor(Math.random() * renkler.length)];
         }
 
-        // İsim Girişi Butonu
+        // İSİM GİRİŞİ
         if (girisBtn) {
             girisBtn.onclick = function() {
                 let isim = kullaniciInput.value.trim();
@@ -115,7 +122,7 @@
             };
         }
 
-        // Mesaj Gönderme Butonu
+        // MESAJ GÖNDERME
         if (gonderBtn) {
             gonderBtn.onclick = function() {
                 let yazi = mesajInput.value.trim();
@@ -136,15 +143,38 @@
             };
         }
 
-        // Paylaşımları Canlı Dinle
+        // CANLI MESAJ DİNLEME & BİLDİRİM TETİKLEME
+        let ilkYukleme = true;
         const paylasimlarRef = ref(db, 'paylasimlar');
+        
         onValue(paylasimlarRef, (snapshot) => {
             if (paylasimlarDiv) {
                 paylasimlarDiv.innerHTML = "";
                 const data = snapshot.val();
                 
                 if (data) {
-                    Object.values(data).reverse().forEach(item => {
+                    const mesajDizisi = Object.values(data);
+                    
+                    // Son eklenen mesaja bak
+                    const sonMesaj = mesajDizisi[mesajDizisi.length - 1];
+                    
+                    // Eğer ilk açılış değilse ve mesaj bizim seçtiğimiz ismi içeriyorsa bildirim at
+                    if (!ilkYukleme && sonMesaj && mevcutKullanici) {
+                        const arananIsim = mevcutKullanici.toLowerCase();
+                        const mesajMetni = sonMesaj.metin.toLowerCase();
+                        
+                        // Mesajı atan kişi kendimiz değilsek ve mesajda ismimiz geçiyorsa!
+                        if (sonMesaj.kullanici !== mevcutKullanici && mesajMetni.includes(arananIsim)) {
+                            if (Notification.permission === "granted") {
+                                new Notification(`Seni Etiketlediler! 💬`, {
+                                    body: `${sonMesaj.kullanici}: ${sonMesaj.metin}`,
+                                    icon: 'https://cdn-icons-png.flaticon.com/512/732/732200.png'
+                                });
+                            }
+                        }
+                    }
+
+                    mesajDizisi.reverse().forEach(item => {
                         let kart = document.createElement("div");
                         kart.className = "mesaj-kart";
                         let isimRengi = item.renk || '#007bff';
@@ -152,6 +182,7 @@
                         paylasimlarDiv.appendChild(kart);
                     });
                 }
+                ilkYukleme = false;
             }
         });
     </script>
